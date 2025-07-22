@@ -20,13 +20,13 @@ Antes de arrancar tus Lambdas, asegúrate de:
 1. **Crear la tabla en DynamoDB Local**
 
    ```bash
-   aws dynamodb create-table \
-     --table-name MiTabla \
-     --attribute-definitions AttributeName=id,AttributeType=S \
-     --key-schema AttributeName=id,KeyType=HASH \
-     --billing-mode PAY_PER_REQUEST \
-     --endpoint-url http://localhost:8000 \
-     --region us-east-1
+      aws dynamodb create-table \
+      --table-name MiTabla \
+      --attribute-definitions AttributeName=id,AttributeType=S \
+      --key-schema AttributeName=id,KeyType=HASH \
+      --billing-mode PAY_PER_REQUEST \
+      --endpoint-url http://localhost:8000 \
+      --region us-east-1
    ```
 
 2. **Definir las variables de entorno** (archivo `.env` o `env.json`):
@@ -37,23 +37,12 @@ Antes de arrancar tus Lambdas, asegúrate de:
    DYNAMODB_TABLE_NAME=MiTabla
    ```
 
-3. **Construir y levantar la API local**
-   Puedes usar SAM CLI:
-
-   ```bash
-   sam local start-api \
-     --env-vars env.json \
-     --docker-network app-network
-   ```
-
-   O tu herramienta preferida (VSCode Toolkit, `make dev`, etc.).
-
-4. **Verificar con curl**
+3. **Verificar con curl**
 
    ```bash
    curl -X POST \
      -H "Content-Type: application/json" \
-     http://localhost:3000/2015-03-31/functions/function/invocations \
+     http://localhost:9000/2015-03-31/functions/function/invocations \
      -d '{}'
    ```
 
