@@ -1,0 +1,49 @@
+services:
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: ${DYNAMODB_CONTAINER_NAME}
+    ports:
+      - "${DYNAMODB_PORT}:${DYNAMODB_PORT}"
+    env_file:
+      - .env
+    environment:
+      - AWS_REGION=${AWS_REGION}
+      - DYNAMODB_PORT=${DYNAMODB_PORT}
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-port", "${DYNAMODB_PORT}"]
+    volumes:
+      - dynamodb_data:${DYNAMODB_DATA_PATH}
+    networks:
+      - ${APP_NETWORK}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:${DYNAMODB_PORT} || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  dynamodb-admin:
+    image: aaronshaf/dynamodb-admin
+    container_name: ${DYNAMODB_ADMIN_CONTAINER_NAME}
+    ports:
+      - "${DYNAMODB_ADMIN_PORT}:8001"
+    env_file:
+      - .env
+    environment:
+      - DYNAMO_ENDPOINT=${DYNAMO_ENDPOINT}
+      - AWS_REGION=${AWS_REGION}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+    depends_on:
+      dynamodb-local:
+        condition: service_healthy
+    networks:
+      - ${APP_NETWORK}
+    restart: unless-stopped
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  dynamodb_data:
