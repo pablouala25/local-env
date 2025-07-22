@@ -1,24 +1,23 @@
-## ✅ **T Ciclo:**
+## 📦 Ciclo de desarrollo
 
-1. **Levantar entorno la primera vez:**
+1. **Inicializar el entorno** (solo la primera vez)
 
-   ```sh
+   ```bash
    make dev
    ```
-2. **Después, por cada cambio de código:**
+2. **Recargar cambios** (tras cada modificación de código)
 
-   ```sh
+   ```bash
    make reload
    ```
 
-
-
 ---
 
-### Pasos previos
+## 🔧 Requisitos previos
+
+Antes de arrancar tus Lambdas, asegúrate de:
 
 1. **Crear la tabla en DynamoDB Local**
-   Ejecuta (ajusta región/endpoint si cambia):
 
    ```bash
    aws dynamodb create-table \
@@ -30,26 +29,26 @@
      --region us-east-1
    ```
 
-2. **Variables de entorno** (en tu `.env` o en la configuración de SAM/Toolkit):
+2. **Definir las variables de entorno** (archivo `.env` o `env.json`):
 
-   ```
+   ```dotenv
    AWS_REGION=us-east-1
-   DYNAMODB_ENDPOINT=http://host.docker.internal:8000    # o http://localhost:8000
+   DYNAMODB_ENDPOINT=http://localhost:8000   # o http://host.docker.internal:8000
    DYNAMODB_TABLE_NAME=MiTabla
    ```
 
-3. **Construir y levantar localmente**
+3. **Construir y levantar la API local**
+   Puedes usar SAM CLI:
 
-   * Con SAM CLI:
+   ```bash
+   sam local start-api \
+     --env-vars env.json \
+     --docker-network app-network
+   ```
 
-     ```bash
-     sam local start-api \
-       --env-vars env.json \
-       --docker-network tu_red_docker
-     ```
-   * O usando tu herramienta preferida (Toolkit de VSCode, `make dev`, etc.)
+   O tu herramienta preferida (VSCode Toolkit, `make dev`, etc.).
 
-4. **Probar con curl**
+4. **Verificar con curl**
 
    ```bash
    curl -X POST \
@@ -58,7 +57,7 @@
      -d '{}'
    ```
 
-   Deberías ver algo como:
+   Deberías recibir:
 
    ```
    "Item recuperado → id=1, message=¡Hola desde DynamoDB!"
