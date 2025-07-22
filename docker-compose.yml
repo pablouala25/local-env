@@ -41,6 +41,44 @@ services:
       - ${APP_NETWORK}
     restart: unless-stopped
 
+  lambda-go-dev:
+    image: public.ecr.aws/lambda/provided:al2023
+    container_name: lambda-go-dev
+    volumes:
+      - ./bin/bootstrap:/var/runtime/bootstrap:ro
+    ports:
+      - "${LAMBDA_GO_DEV_PORT:-9000}:${LAMBDA_GO_DEV_TARGET_PORT:-8080}"
+    env_file:
+      - .env
+    environment:
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      DYNAMODB_ENDPOINT: "http://dynamodb-local:${DYNAMODB_PORT}"
+      DYNAMODB_TABLE_NAME: ${DYNAMODB_TABLE_NAME}
+    command: [ "bootstrap" ]        # <<< agregado
+    depends_on:
+      dynamodb-local:
+        condition: service_healthy
+    networks:
+      - ${APP_NETWORK}
+    restart: unless-stopped
+
+  # sns-sqs-mcp:
+  #   image: public.ecr.aws/awslabs-mcp/awslabs/amazon-sns-sqs-mcp-server:latest
+  #   container_name: ${SNS_SQS_MCP_CONTAINER_NAME}
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     - AWS_REGION=${AWS_REGION}
+  #     - AWS_PROFILE=${AWS_PROFILE}
+  #     - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+  #     - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+  #     - MCP_ALLOW_RESOURCE_CREATION=${MCP_ALLOW_RESOURCE_CREATION}
+  #   ports:
+  #     - "${SNS_SQS_MCP_PORT}:${SNS_SQS_MCP_PORT}"
+  #   networks:
+  #     - ${APP_NETWORK}
+  #   restart: unless-stopped
+
 networks:
   app-network:
     driver: bridge
