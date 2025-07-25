@@ -4,14 +4,19 @@ services:
     container_name: ${DYNAMODB_CONTAINER_NAME}
     ports:
       - "${DYNAMODB_PORT}:${DYNAMODB_PORT}"
-    env_file:
-      - .env
     environment:
       - AWS_REGION=${AWS_REGION}
       - DYNAMODB_PORT=${DYNAMODB_PORT}
-    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-port", "${DYNAMODB_PORT}"]
+    # indicamos dónde persiste la data
+    command:
+      [
+        "-jar", "DynamoDBLocal.jar",
+        "-sharedDb",
+        "-dbPath", "/data",        # <<-- aquí!
+        "-port", "${DYNAMODB_PORT}"
+      ]
     volumes:
-      - dynamodb_data:${DYNAMODB_DATA_PATH}
+      - dynamodb_data:/data      # <<-- montamos el volumen aquí
     networks:
       - ${APP_NETWORK}
     restart: unless-stopped
@@ -62,6 +67,19 @@ services:
       - ${APP_NETWORK}
     restart: unless-stopped
 
+  localstack:
+    image: localstack/localstack:latest
+    container_name: localstack
+    ports:
+      - "4566:4566"            # Puerto “edge” unificado de LocalStack :contentReference[oaicite:10]{index=10}
+    environment:
+      - AWS_REGION=${AWS_REGION}
+      - SERVICES=apigateway,sqs
+      - DATA_DIR=/tmp/localstack/data
+    volumes:
+      - ./localstack_init:/etc/localstack/init/ready.d/  # Scripts de bootstrap :contentReference[oaicite:11]{index=11}
+    networks:
+      - ${APP_NETWORK}
   # sns-sqs-mcp:
   #   image: public.ecr.aws/awslabs-mcp/awslabs/amazon-sns-sqs-mcp-server:latest
   #   container_name: ${SNS_SQS_MCP_CONTAINER_NAME}

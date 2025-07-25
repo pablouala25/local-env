@@ -68,18 +68,3 @@ restart:
 
 reload: build restart
 	@echo "♻️  Binario reconstruido y lambda-go-dev reiniciado."
-
-# --- Local invoke contra el Runtime Interface Emulator ---
-# Uso: make invoke [EVENT=events/sample.json] [PORT=9000]
-invoke:
-	@PORT=${PORT:-$(LAMBDA_GO_DEV_PORT)} ; \
-	EVENT=${EVENT:-} ; \
-	URL="http://localhost:$$PORT/2015-03-31/functions/function/invocations" ; \
-	echo "Invocando Lambda en $$URL" ; \
-	if [ -z "$$EVENT" ]; then \
-		curl -sS -X POST -H 'Content-Type: application/json' "$$URL" -d '{}' ; \
-	else \
-		if [ ! -f "$$EVENT" ]; then echo "Archivo de evento no encontrado: $$EVENT" ; exit 1 ; fi ; \
-		curl -sS -X POST -H 'Content-Type: application/json' "$$URL" --data-binary "@$$EVENT" ; \
-	fi ; \
-	echo
