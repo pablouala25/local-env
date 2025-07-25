@@ -17,15 +17,34 @@ import (
 
 func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	// Carga configuración AWS SDK v2 y el cliente DynamoDB :contentReference[oaicite:0]{index=0}
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(os.Getenv("AWS_REGION")))
+	// cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(os.Getenv("AWS_REGION")))
+	// if err != nil {
+	// 	return serverError(err)
+	// }
+	// client := dynamodb.NewFromConfig(cfg, func(o *dynamodb.Options) {
+	// 	if ep := os.Getenv("DYNAMODB_ENDPOINT"); ep != "" {
+	// 		o.BaseEndpoint = aws.String(ep)
+	// 	}
+	// })
+
+	cfg, err := config.LoadDefaultConfig(ctx,
+		config.WithRegion(os.Getenv("AWS_REGION")),
+		config.WithEndpointResolver(aws.EndpointResolverFunc(
+			func(service, region string) (aws.Endpoint, error) {
+				if service == dynamodb.ServiceID {
+					return aws.Endpoint{
+						URL:           os.Getenv("DYNAMODB_ENDPOINT"),
+						SigningRegion: os.Getenv("AWS_REGION"),
+					}, nil
+				}
+				return aws.Endpoint{}, &aws.EndpointNotFoundError{}
+			},
+		)),
+	)
 	if err != nil {
 		return serverError(err)
 	}
-	client := dynamodb.NewFromConfig(cfg, func(o *dynamodb.Options) {
-		if ep := os.Getenv("DYNAMODB_ENDPOINT"); ep != "" {
-			o.BaseEndpoint = aws.String(ep)
-		}
-	})
+	client := dynamodb.NewFromConfig(cfg)
 
 	table := os.Getenv("DYNAMODB_TABLE_NAME")
 	if table == "" {
@@ -101,6 +120,10 @@ func clientError(status int, msg string) (events.APIGatewayProxyResponse, error)
 // serverError construye una respuesta 500
 func serverError(err error) (events.APIGatewayProxyResponse, error) {
 	fmt.Fprintln(os.Stderr, err)
-	body, _ := json.Marshal(map[string]string{"error": "internal server error"})
-	return events.APIGatewayProxyResponse{StatusCode: 500, Headers: map[string]string{"Content-Type": "application/json"}, Body: string(body)}, nil
+	body, _ := json.Marshal(map[string]string{"error": err.Error()})
+	return events.APIGatewayProxyResponse{
+		StatusCode: 500,
+		Headers:    map[string]string{"Content-Type": "application/json"},
+		Body:       string(body),
+	}, nil
 }
