@@ -4,19 +4,14 @@ services:
     container_name: ${DYNAMODB_CONTAINER_NAME}
     ports:
       - "${DYNAMODB_PORT}:${DYNAMODB_PORT}"
+    env_file:
+      - .env
     environment:
       - AWS_REGION=${AWS_REGION}
       - DYNAMODB_PORT=${DYNAMODB_PORT}
-    # indicamos dónde persiste la data
-    command:
-      [
-        "-jar", "DynamoDBLocal.jar",
-        "-sharedDb",
-        "-dbPath", "/data",        # <<-- aquí!
-        "-port", "${DYNAMODB_PORT}"
-      ]
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-port", "${DYNAMODB_PORT}"]
     volumes:
-      - dynamodb_data:/data      # <<-- montamos el volumen aquí
+      - dynamodb_data:${DYNAMODB_DATA_PATH}
     networks:
       - ${APP_NETWORK}
     restart: unless-stopped
@@ -26,6 +21,33 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+  # dynamodb-local:
+  #   image: amazon/dynamodb-local:latest
+  #   container_name: ${DYNAMODB_CONTAINER_NAME}
+  #   ports:
+  #     - "${DYNAMODB_PORT}:${DYNAMODB_PORT}"
+  #   environment:
+  #     - AWS_REGION=${AWS_REGION}
+  #     - DYNAMODB_PORT=${DYNAMODB_PORT}
+  #   # indicamos dónde persiste la data
+  #   command:
+  #     [
+  #       "-jar", "DynamoDBLocal.jar",
+  #       "-sharedDb",
+  #       "-dbPath", "/data",        # <<-- aquí!
+  #       "-port", "${DYNAMODB_PORT}"
+  #     ]
+  #   volumes:
+  #     - dynamodb_data:/data      # <<-- montamos el volumen aquí
+  #   networks:
+  #     - ${APP_NETWORK}
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "curl -s http://localhost:${DYNAMODB_PORT} || exit 1"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 10s
 
   dynamodb-admin:
     image: aaronshaf/dynamodb-admin
