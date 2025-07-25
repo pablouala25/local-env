@@ -45,6 +45,7 @@ lint:
 up:
 	@echo "⬆️  Starting Docker Compose services..."
 	docker compose -f $(DOCKER_COMPOSE_FILE) up -d
+	@$(MAKE) logs
 
 down:
 	@echo "⬇️  Stopping Docker Compose services..."
@@ -60,7 +61,6 @@ compose-build:
 
 dev: build up
 	@echo "✅ Dev environment is up and ready!"
-	@$(MAKE) logs
 
 restart:
 	@echo "🔄 Restarting lambda-go-dev (to reload updated binary)..."
