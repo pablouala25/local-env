@@ -27,24 +27,33 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 	// 	}
 	// })
 
+	// cfg, err := config.LoadDefaultConfig(ctx,
+	// 	config.WithRegion(os.Getenv("AWS_REGION")),
+	// 	config.WithEndpointResolver(aws.EndpointResolverFunc(
+	// 		func(service, region string) (aws.Endpoint, error) {
+	// 			if service == dynamodb.ServiceID {
+	// 				return aws.Endpoint{
+	// 					URL:           os.Getenv("DYNAMODB_ENDPOINT"),
+	// 					SigningRegion: os.Getenv("AWS_REGION"),
+	// 				}, nil
+	// 			}
+	// 			return aws.Endpoint{}, &aws.EndpointNotFoundError{}
+	// 		},
+	// 	)),
+	// )
+
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(os.Getenv("AWS_REGION")),
-		config.WithEndpointResolver(aws.EndpointResolverFunc(
-			func(service, region string) (aws.Endpoint, error) {
-				if service == dynamodb.ServiceID {
-					return aws.Endpoint{
-						URL:           os.Getenv("DYNAMODB_ENDPOINT"),
-						SigningRegion: os.Getenv("AWS_REGION"),
-					}, nil
-				}
-				return aws.Endpoint{}, &aws.EndpointNotFoundError{}
-			},
-		)),
 	)
 	if err != nil {
 		return serverError(err)
 	}
-	client := dynamodb.NewFromConfig(cfg)
+
+	client := dynamodb.NewFromConfig(cfg, func(o *dynamodb.Options) {
+		if ep := os.Getenv("DYNAMODB_ENDPOINT"); ep != "" {
+			o.BaseEndpoint = aws.String(ep)
+		}
+	})
 
 	table := os.Getenv("DYNAMODB_TABLE_NAME")
 	if table == "" {
@@ -108,19 +117,29 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 }
 
 func main() {
-	lambda.Start(handler) // Arranca el handler como Lambda Proxy Integration :contentReference[oaicite:3]{index=3}
+	lambda.Start(handler)
 }
 
 // clientError construye una respuesta 4xx
 func clientError(status int, msg string) (events.APIGatewayProxyResponse, error) {
-	body, _ := json.Marshal(map[string]string{"error": msg})
-	return events.APIGatewayProxyResponse{StatusCode: status, Headers: map[string]string{"Content-Type": "application/json"}, Body: string(body)}, nil
+	body, _ := json.Marshal(map[string]string{
+		"error": msg,
+	})
+
+	return events.APIGatewayProxyResponse{StatusCode: status, Headers: map[string]string{
+			"Content-Type": "application/json"},
+			Body: string(body),
+		},
+		nil
 }
 
 // serverError construye una respuesta 500
 func serverError(err error) (events.APIGatewayProxyResponse, error) {
 	fmt.Fprintln(os.Stderr, err)
-	body, _ := json.Marshal(map[string]string{"error": err.Error()})
+	body, _ := json.Marshal(map[string]string{
+		"error": err.Error(),
+	})
+
 	return events.APIGatewayProxyResponse{
 		StatusCode: 500,
 		Headers:    map[string]string{"Content-Type": "application/json"},
