@@ -1,0 +1,48 @@
+{
+  "info": {
+    "name": "Lambda RIE Invocations",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Invoke POST /item",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"httpMethod\": \"POST\",\n  \"pathParameters\": {},\n  \"queryStringParameters\": null,\n  \"body\": \"{\\\"id\\\":\\\"1\\\",\\\"message\\\":\\\"hola\\\"}\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:9000/2015-03-31/functions/function/invocations",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "9000",
+          "path": ["2015-03-31","functions","function","invocations"]
+        }
+      }
+    },
+    {
+      "name": "Invoke GET /item/{id}",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"httpMethod\": \"GET\",\n  \"pathParameters\": { \"id\": \"1\" },\n  \"queryStringParameters\": null,\n  \"body\": \"\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:9000/2015-03-31/functions/function/invocations",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "9000",
+          "path": ["2015-03-31","functions","function","invocations"]
+        }
+      }
+    }
+  ]
+}
