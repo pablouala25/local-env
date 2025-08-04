@@ -1,226 +1,172 @@
-## 📦 Ciclo de desarrollo
+# README
 
-1. **Inicializar el entorno** (solo la primera vez)
+Este proyecto emula un entorno AWS completo en local, combinando contenedores Docker y SAM CLI. A continuación encontrarás:
 
-   ```bash
-   make dev
-   ```
-2. **Recargar cambios** (tras cada modificación de código)
-
-   ```bash
-   make reload
-   ```
+* 🛠️ **Cómo levantar el entorno**
+* 📦 **Qué hace cada contenedor**
+* 🔄 **Flujo de arranque**
+* ⚙️ **Descripciones de archivos clave**
 
 ---
 
-## 🔧 Requisitos previos
+## Requisitos
 
-Antes de arrancar tus Lambdas, asegúrate de:
-
-1. **Crear la tabla en DynamoDB Local**
-
-   ```bash
-      aws dynamodb create-table \
-      --table-name Items \
-      --attribute-definitions AttributeName=id,AttributeType=S \
-      --key-schema AttributeName=id,KeyType=HASH \
-      --billing-mode PAY_PER_REQUEST \
-      --endpoint-url http://localhost:8000 \
-      --region us-east-1
-   ```
-
-2. **Definir las variables de entorno** (archivo `.env` o `env.json`):
-
-   ```dotenv
-   AWS_REGION=us-east-1
-   DYNAMODB_ENDPOINT=http://localhost:8000   # o http://host.docker.internal:8000
-   DYNAMODB_TABLE_NAME=Items
-   ```
-
-3. **Verificar con curl**
-
-   ```bash
-   curl -X POST \
-     -H "Content-Type: application/json" \
-     http://localhost:9000/2015-03-31/functions/function/invocations \
-     -d '{}'
-   ```
-
-   Deberías recibir:
-
-   ```
-   "Item recuperado → id=1, message=¡Hola desde DynamoDB!"
-   ```
-
-
-
-
-
-
-
-
-
-   Localstack
-
-
-   Para exponer un **GET** en tu API Gateway (LocalStack o AWS real) debes hacer dos cosas:
-
-1. **Configurar el método GET en API Gateway** (igual que con POST, pero cambiando el http-method).
-2. **Adaptar tu handler Go** para leer `req.HTTPMethod == "GET"` y, si quieres, procesar parámetros de consulta.
+* Docker & Docker Compose (v2+)
+* Go (v1.18+)
+* AWS SAM CLI
+* AWS CLI (opcional para debugging)
 
 ---
 
-## 1. Añadir GET en el bootstrap de LocalStack
+## Estructura de archivos
 
-En tu script `01-init.sh`, justo después de crear el recurso `/echo`, añade los pasos para GET:
+```text
+├── bin/                 # Binarios compilados (bootstrap)
+├── cmd/                 # Código Go de la Lambda
+├── docker-compose.yml   # Servicios Docker para DynamoDB, LocalStack y Lambda
+├── template.yaml        # SAM template (CloudFormation/SAM)
+├── Makefile             # Tareas para build, despliegue local y teardown
+└── README.md            # Esta documentación
+```
+
+---
+
+## 1. Compilar la Lambda Go
 
 ```bash
-# … después de crear POST …
-
-# 4.b) Configurar el método GET
-awslocal apigateway put-method \
-  --rest-api-id "$API_ID" \
-  --resource-id "$ECHO_ID" \
-  --http-method GET \
-  --authorization-type NONE \
-  --region ${AWS_REGION}
-
-# 5.b) Integración proxy GET → Lambda
-awslocal apigateway put-integration \
-  --rest-api-id "$API_ID" \
-  --resource-id "$ECHO_ID" \
-  --http-method GET \
-  --type AWS_PROXY \
-  --integration-http-method POST \
-  --uri arn:aws:apigateway:${AWS_REGION}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS_REGION}:000000000000:function:lambda-go-dev/invocations \
-  --region ${AWS_REGION}
+make build
 ```
 
-Luego vuelve a desplegar:
-
-```bash
-awslocal apigateway create-deployment \
-  --rest-api-id "$API_ID" \
-  --stage-name dev \
-  --region ${AWS_REGION}
-```
-
-Ahora tu ruta `/echo` responderá tanto a **POST** como a **GET**.
+* Genera `bin/bootstrap` (Go Linux/amd64, sin CGO).
+* Es el ejecutable que correrá dentro del contenedor Lambda.
 
 ---
 
-## 2. Adaptar tu handler Go para GET
+## 2. Levantar servicios Docker
 
-Si usas el handler con proxy (events.APIGatewayProxyRequest), detecta el método y lee parámetros de consulta:
-
-```go
-import (
-  "github.com/aws/aws-lambda-go/events"
-  // …
-)
-
-func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-  switch req.HTTPMethod {
-  case "POST":
-    // tu lógica actual de insertar/leer Dynamo…
-    // body := req.Body
-  case "GET":
-    // ejemplar: leer ?id=123 de la URL
-    id := req.QueryStringParameters["id"]
-    if id == "" {
-      return events.APIGatewayProxyResponse{StatusCode: 400, Body: "missing id"}, nil
-    }
-    // lee Dynamo con ese id
-    out, err := client.GetItem(ctx, &dynamodb.GetItemInput{
-      TableName: aws.String(table),
-      Key: map[string]types.AttributeValue{
-        "id": &types.AttributeValueMemberS{Value: id},
-      },
-    })
-    if err != nil {
-      return events.APIGatewayProxyResponse{StatusCode:500}, err
-    }
-    // serializa y devuelve JSON
-    resp, _ := json.Marshal(map[string]string{
-      "id":   id,
-      "message": out.Item["message"].(*types.AttributeValueMemberS).Value,
-    })
-    return events.APIGatewayProxyResponse{
-      StatusCode: 200,
-      Headers:    map[string]string{"Content-Type":"application/json"},
-      Body:       string(resp),
-    }, nil
-
-  default:
-    return events.APIGatewayProxyResponse{
-      StatusCode: 405,
-      Body:       fmt.Sprintf("method %s not allowed", req.HTTPMethod),
-    }, nil
-  }
-}
+```bash
+make compose-up
 ```
 
-Con esto:
+Inicia en background:
 
-* **GET /echo?id=1** invoca el mismo Lambda, entra en el caso `"GET"`, lee el parámetro `id` y retorna el ítem de Dynamo.
-* **POST /echo** sigue operando tal como ya lo tienes implementado.
+1. **dynamodb-local**: emula DynamoDB en `http://dynamodb-local:8000`.
+2. **dynamodb-admin**: UI web para explorar tablas DynamoDB (`http://localhost:8001`).
+3. **lambda-go-dev**: contenedor con tu función Go.
+4. **localstack**: emula servicios AWS secundarios (S3, SQS, SNS, etc.).
+5. **sam-local**: emula API Gateway y enruta HTTP a la Lambda.
 
 ---
 
-## 3. Probar el GET localmente
-
-Una vez redeployado el API en LocalStack, prueba con:
+## 3. Iniciar API Gateway local (SAM CLI)
 
 ```bash
-curl "http://localhost:4566/restapis/${API_ID}/dev/_user_request_/echo?id=1"
+make sam-up
 ```
 
-Y deberías recibir tu JSON con `{ "id": "1", "message": "¡Hola desde DynamoDB!" }`.
+* Ejecuta `sam local start-api --host 0.0.0.0 --port 3000 --docker-network app-network`.
+* Escucha peticiones HTTP y las envía al contenedor `lambda-go-dev`.
 
-¡Así tendrás un endpoint GET funcionando exactamente igual que un servidor HTTP tradicional, pero dentro de tu Lambda en LocalStack!
+---
 
+## 4. Arranque todo en un solo paso
 
-awslocal apigateway get-stages --rest-api-id <API_ID>
+```bash
+make all
+```
 
-------------------------------------------------
+Equivale a:
 
-curl -i -X POST \
-  http://localhost:4566/restapis/p4njryy8fp/dev/_user_request_/items \
+1. `make build`
+2. `make compose-up`
+3. `make sam-up`
+
+Al finalizar verás:
+
+```
+✅ Development environment ready! Visit http://localhost:3000
+```
+
+---
+
+## 5. Probar la API
+
+```bash
+curl -i -X POST http://localhost:3000/api/v1/items \
   -H "Content-Type: application/json" \
   -d '{"id":"123","message":"¡hola mundo!"}'
+```
 
-HTTP/1.1 201 CREATED
-Server: TwistedWeb/24.3.0
-Date: Sun, 27 Jul 2025 15:07:02 GMT
-Content-Type: application/json
-Connection: keep-alive
-Content-Length: 31
-x-amzn-RequestId: f247ced3-a014-43cb-b5d9-580d34d438f7
-x-amz-apigw-id: 218aee53=
-X-Amzn-Trace-Id: Root=1-68864096-8afd73c595024e1956dde23f;Parent=1a766eee5ecb617e;Sampled=0
-x-localstack: true
+Deberías recibir un HTTP 200/201 y ver el ítem guardado en DynamoDB Local.
 
-{"id":"123","status":"created"}%     
+---
 
-probar: URL de invocación de API Gateway (LocalStack ≥ 3.8):
-/restapis/<api_id>/<stage>/_user_request_ está deprecated. Debes usar
-/_aws/execute-api/<api_id>/<stage>.
+## Descripción de los contenedores
 
-------------------------------
+### 1. DynamoDB Local
 
+* Imagen: `amazon/dynamodb-local:latest`.
+* Expone DynamoDB en `http://dynamodb-local:${DYNAMODB_PORT}`.
+* Se monta el volumen `dynamodb_data` para persistencia.
+* Healthcheck con CURL para verificar que arranque.
 
-❯ curl -i -X GET \
-  "http://localhost:4566/restapis/p4njryy8fp/dev/_user_request_/items/123"
+### 2. DynamoDB Admin
 
-HTTP/1.1 200 OK
-Server: TwistedWeb/24.3.0
-Date: Sun, 27 Jul 2025 15:11:20 GMT
-Content-Type: application/json
-Connection: keep-alive
-Content-Length: 38
-x-amzn-RequestId: 8c020306-9f98-477e-9891-6fce08a156d2
-x-amz-apigw-id: c75264e1=
-X-Amzn-Trace-Id: Root=1-68864198-4686755b7f7b4f57dbc921cc;Parent=9b347d43897536a0;Sampled=0
-x-localstack: true
+* Imagen: `aaronshaf/dynamodb-admin`.
+* UI web en `http://localhost:${DYNAMODB_ADMIN_PORT}`.
+* Conecta contra `dynamodb-local`.
 
-{"id":"123","message":"¡hola mundo!"}%   
+### 3. Lambda Go Dev
+
+* Imagen: `public.ecr.aws/lambda/provided:al2023`.
+* Monta tu binario `bootstrap` como runtime `/var/runtime/bootstrap`.
+* Recibe envs: `AWS_REGION`, `DYNAMODB_ENDPOINT`, `DYNAMODB_TABLE_NAME`.
+* Actúa como tu función Lambda real.
+
+### 4. LocalStack
+
+* Imagen: `localstack/localstack:latest`.
+* Emula múltiples servicios AWS (S3, SQS, SNS, etc.)
+* Sin Lambda ni DynamoDB (dejamos esos servicios fuera para evitar duplicidad).
+
+### 5. SAM Local (API Gateway)
+
+* Contenedor que ejecuta `sam local start-api`.
+* Emula API Gateway y enruta HTTP a la función Lambda.
+* Usa tu `template.yaml` para leer rutas, métodos y variables de entorno.
+
+---
+
+## Diagrama de interacción
+
+```text
+[you / host]
+   │
+   │  make all
+   ▼
+
+┌─────────────────┐     ┌───────────────┐     ┌───────────────┐
+│ sam-local       │◀───▶│ lambda-go-dev │◀───┐│ dynamodb-local│
+│ (API Gateway)   │     │ (Go Lambda)   │     │ (DynamoDB)    │
+└─────────────────┘     └───────────────┘     └───────────────┘
+       │
+       ▼
+┌─────────────────┐
+│ localstack      │
+│ (otros servicios│
+│  AWS emulados)  │
+└─────────────────┘
+```
+
+---
+
+## Detalles adicionales
+
+* El `template.yaml` define la función, la tabla DynamoDB y las variables de entorno.
+* Al usar `!Ref Items` en SAM, `DYNAMODB_TABLE_NAME` se resuelve a `Items`.
+* Puedes expandir `template.yaml` para agregar más funciones, triggers (SQS, SNS, EventBridge), buckets S3, etc.
+* Para una integración end-to-end con SQS, activa `sqs` en `SERVICES` de LocalStack y declara el EventSourceMapping en `template.yaml`.
+
+---
+
+¡Listo! Ahora tienes un entorno local 100% reproducible, versionable y alineado con AWS.

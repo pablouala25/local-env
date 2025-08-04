@@ -6,13 +6,14 @@ Globals:
     Runtime: provided.al2
     Environment:
       Variables:
-        DYNAMODB_TABLE_NAME: !Ref ItemsTable
+        DYNAMODB_TABLE_NAME: !Ref Items
         DYNAMODB_ENDPOINT: http://dynamodb-local:8000
 
 Resources:
   CrudFunction:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: TestLocalEnvironment
       Handler: bootstrap
       CodeUri: ./bin/
       Events:
@@ -22,7 +23,7 @@ Resources:
             Path: /api/v1/{proxy+}
             Method: ANY
 
-  ItemsTable:
+  Items:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: Items

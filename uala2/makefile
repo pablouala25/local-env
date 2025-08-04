@@ -1,17 +1,17 @@
 SHELL := /bin/bash
 
-# Directories and binaries
+# Directorios y binarios
 ROOT_DIR := $(shell pwd)
 BUILD_DIR := $(ROOT_DIR)/bin
 BINARY := $(BUILD_DIR)/bootstrap
 
-# Docker Compose and SAM CLI
+# Docker Compose y SAM CLI
 DC := docker compose -f docker-compose.yml
 SAM := sam
 
-.PHONY: build compose-up sam-up restart-all down clean all
+.PHONY: build compose-up sam-up start restart down clean
 
-# 1. Compile the Go Lambda
+# 1. Compilar la Lambda Go
 build:
 	@echo "🔨 Compiling Lambda (Go bootstrap)..."
 	@mkdir -p $(BUILD_DIR)
@@ -19,33 +19,44 @@ build:
 		go build -gcflags "all=-N -l" \
 		-o $(BINARY) cmd/main.go
 	@chmod +x $(BINARY)
+	@echo "✅ Build complete"
 
-# 2. Bring up external services and the Go container
+# 2. Levantar servicios Docker (DynamoDB, Lambda Go Dev y LocalStack)
 compose-up:
-	@echo "⬆️  Starting external services..."
+	@echo "⬆️  Starting Docker services..."
 	$(DC) up -d
+	@echo "✅ Docker services are up"
 
-# 3. Start SAM local for API Gateway / Lambda emulation
+# 3. Iniciar SAM CLI (API Gateway → Lambda)
 sam-up:
 	@echo "🚀 Starting SAM local API..."
 	$(SAM) local start-api \
 		--host 0.0.0.0 \
 		--port 3000 \
 		--docker-network app-network
+	@echo "✅ SAM local API running on http://localhost:3000"
 
-# 4. Rebuild & restart the full dev stack (Go code + containers)
-restart-all:
-	@echo "🔄 Restarting full dev stack..."
-	$(MAKE) build
-	$(DC) restart
-	@# SAM local hot-reloads function code automatically; no restart needed
+# 4. Shortcut: build + compose-up + sam-up
+start: build compose-up sam-up
+	@echo "🏁 All set! Development environment ready"
 
-# 5. Tear down all services and clean up binaries
-down:
-	@echo "⬇️  Stopping and removing containers, networks, volumes..."
+# 5. Tear down servicios Docker y binarios
+stop:
+	@echo "⬇️  Stopping Docker services..."
 	$(DC) down --remove-orphans
-	rm -rf $(BUILD_DIR)
+	@echo "✅ Docker services stopped"
 
-# 6. One-step shortcut: compile, bring up services, and start SAM
-all: build compose-up sam-up
-	@echo "✅ Development environment ready! Visit http://localhost:3000"
+# 6. Reiniciar todo desde cero (down + start)
+restart: stop clean start
+	@echo "🔄 Restart complete"
+
+# 7. Borrar binarios compilados
+clean:
+	@echo "🧹 Performing full clean..."
+	$(DC) down -v --remove-orphans
+	@echo "🗑️  Removed Docker volumes and networks"
+	@echo "🧹 Cleaning build artifacts..."
+	rm -rf $(BUILD_DIR)
+	@echo "✅ Full clean complete"
+
+
