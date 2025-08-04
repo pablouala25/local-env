@@ -1,0 +1,35 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Globals:
+  Function:
+    Runtime: provided.al2
+    Environment:
+      Variables:
+        DYNAMODB_TABLE_NAME: !Ref ItemsTable
+        DYNAMODB_ENDPOINT: http://dynamodb-local:8000
+
+Resources:
+  CrudFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: bootstrap
+      CodeUri: ./bin/
+      Events:
+        ApiProxy:
+          Type: Api
+          Properties:
+            Path: /api/v1/{proxy+}
+            Method: ANY
+
+  ItemsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Items
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
