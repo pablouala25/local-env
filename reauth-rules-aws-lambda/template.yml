@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Globals:
+  Function:
+    Runtime: provided.al2
+    Timeout: 30
+    Environment:
+      Variables:
+        # Tabla de reglas
+        RULES_TABLE_NAME: !Ref RulesTable
+        
+        # Para DynamoDB Local
+        DYNAMODB_ENDPOINT: http://dynamodb-local:8000
+        
+        # Flags de rutas
+        CREATE_RULE_ENABLED: "true"
+        GET_RULES_ENABLED: "true"
+        UPDATE_RULE_ENABLED: "true"
+        DELETE_RULE_ENABLED: "true"
+        
+        # Métricas / tracing
+        METRICS_ENABLED: "false"
+        TRACING_ENABLED: "false"
+        
+        # Info adicional
+        NP_DIMENSION_ENVIRONMENT: "local"
+        NP_DIMENSION_COUNTRY: "US"
+        NP_DIMENSION_REGION: "us-east-1"
+
+Resources:
+  CrudFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: ReauthRulesLocal
+      Handler: bootstrap
+      CodeUri: /home/pablo/Projects/Uala/uala-apps-ecosystem-reauth/lambdas/go/reauth-rules-aws-lambda/bin/
+      Events:
+        ApiProxy:
+          Type: Api
+          Properties:
+            Path: /api/v1/{proxy+}
+            Method: ANY
+            Auth:
+              ApiKeyRequired: false
+
+  RulesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Rules
+      AttributeDefinitions:
+        - AttributeName: rule_id
+          AttributeType: S
+        - AttributeName: initiative_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: rule_id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      GlobalSecondaryIndexes:
+        - IndexName: InitiativeIDIndex
+          KeySchema:
+            - AttributeName: initiative_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
